@@ -1,0 +1,3 @@
+# multithreaded-web-server
+Simple Multi-threaded (originally single threaded) web server implemented from scratch using core Java, in the ISCTE bootcamp of &lt;Academia de Código_>.
+Developed over two days, after the class was introduced to network programming and how the Web works. It consists of a simple web server, which only accepts GET requests and serves as a response either an HTML page locally stored or an image (.png, .jpg). It is planned to go through some refactoring to add more defensive programming to the code, test for all possible errors in its current features and have better encapsulation.
