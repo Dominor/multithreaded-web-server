@@ -1,96 +1,61 @@
 package org.academiadecodigo.splicegirls36.simplewebserver;
 
 import java.io.*;
-import java.net.ServerSocket;
 import java.net.Socket;
 
-public class SimpleWebServer {
-
-    public static String CHARSET = "UTF8";
-
-    public static final File NOT_FOUND_HTML_FILE = new File("www/404.html");
-    public static final File NOT_IMPLEMENTED_FILE = new File("www/501.html");
+public class Dispatcher implements Runnable {
 
     private Socket clientSocket;
-    private ServerSocket serverSocket;
     private BufferedReader inputBufferedReader;
     private DataOutputStream outputStream;
 
-    public SimpleWebServer(int port) {
 
-        try {
+    Dispatcher(Socket clientSocket) {
 
-            //bind the socket to specified port
-            System.out.println("INFO: Binding to port " + port);
-            serverSocket = new ServerSocket(port);
-
-            System.out.println("INFO: Server started: " + serverSocket);
-
-        } catch (IOException e) {
-            System.err.println("ERROR: " + e.getMessage());
-            close();
-            System.exit(1);
-        }
+        this.clientSocket = clientSocket;
     }
 
-    public void start() {
+    @Override
+    public void run() {
 
-        String line;
-        String nullVariable = null;
         StringBuilder requestBuilder = new StringBuilder();
 
-        try {
+        String line = null;
 
-            // block waiting for a client to connect
-            System.out.println("INFO: Waiting for a client connection.");
-            clientSocket = serverSocket.accept();
-
-            // handle client connection
-            System.out.println("INFO: Client accepted: " + clientSocket);
-            setupStreams();
-
-            while (serverSocket.isBound()) {
-
-                // read line from socket input reader
-                line = inputBufferedReader.readLine();
-                if (line != null) {
-
-                    if (line.isEmpty()) {
-
-                        //System.out.println(requestBuilder.toString());
-                        parseRequestHeaders(requestBuilder.toString());
-                        System.out.println("INFO: Processed request.");
-                        requestBuilder.delete(0, requestBuilder.length());
-
-                        restart();
-
-                    } else {
-                        requestBuilder.append(line + "\r\n");
-                        System.out.println("INFO: Read request line.");
-                    }
-                } else {
-                    restart();
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("ERROR: " + e.getMessage());
-        }
-
-        finally {
-            close();
-        }
-    }
-
-    private void restart() throws IOException {
-
-        closeClient();
-        // block waiting for a client to connect
-        System.out.println("INFO: Waiting for a client connection.");
-        clientSocket = serverSocket.accept();
 
         // handle client connection
         System.out.println("INFO: Client accepted: " + clientSocket);
         setupStreams();
+
+        try {
+            while(clientSocket.isBound()) {
+                // read line from socket input reader
+                line = inputBufferedReader.readLine();
+                    if (line != null) {
+
+                        if (line.isEmpty()) {
+
+                            parseRequestHeaders(requestBuilder.toString());
+                            System.out.println("INFO: Processed request.");
+                            requestBuilder.delete(0, requestBuilder.length());
+
+                            close();
+
+                        } else {
+                            requestBuilder.append(line);
+                            requestBuilder.append("\r\n");
+                            System.out.println("INFO: Read request line.");
+                        }
+                    } else {
+                        requestBuilder.delete(0, requestBuilder.length());
+                        close();
+                    }
+            }
+        } catch (IOException e) {
+
+            System.err.println(e.getMessage());
+        }
+
     }
 
     private String buildResponseHeaders (File resource, byte[] content, StatusCode statusCode) throws IOException {
@@ -177,7 +142,7 @@ public class SimpleWebServer {
     private void setupStreams() {
 
         try {
-            inputBufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), CHARSET));
+            inputBufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), ConcurrentWebServer.CHARSET));
             outputStream = new DataOutputStream(clientSocket.getOutputStream());
         } catch (IOException e) {
             System.out.println("ERROR: " + e.getMessage());
@@ -191,7 +156,7 @@ public class SimpleWebServer {
 
         String responseHeaders = buildResponseHeaders(resource, content, statusCode);
 
-        byte[] responseInBytes = responseHeaders.getBytes(CHARSET);
+        byte[] responseInBytes = responseHeaders.getBytes(ConcurrentWebServer.CHARSET);
 
         int oldBytesWritten = outputStream.size();
 
@@ -231,23 +196,23 @@ public class SimpleWebServer {
                 case "GET":
                     if (!isValidFile(resource)) {
                         System.err.println("ERROR: Invalid file. Returning 404 page.");
-                        sendResponse(NOT_FOUND_HTML_FILE, StatusCode.NOT_FOUND);
+                        sendResponse(ConcurrentWebServer.NOT_FOUND_HTML_FILE, StatusCode.NOT_FOUND);
                     } else {
                         sendResponse(resource, StatusCode.OK);
                     }
                     break;
                 default:
                     System.err.println("ERROR: HTTP Request not yet implemented!");
-                    sendResponse(NOT_IMPLEMENTED_FILE, StatusCode.NOT_IMPLEMENTED);
+                    sendResponse(ConcurrentWebServer.NOT_IMPLEMENTED_FILE, StatusCode.NOT_IMPLEMENTED);
             }
         }
     }
 
     /**
-     * Closes only the client socket
+     * Closes itself
      */
 
-    private void closeClient () {
+    private void close () {
 
         try {
 
@@ -256,25 +221,6 @@ public class SimpleWebServer {
                 clientSocket.close();
             }
 
-        } catch (IOException e) {
-            System.out.println("ERROR: Error closing connection " + e.getMessage());
-        }
-    }
-
-    /**
-     * Closes the client socket and the buffered input reader
-     */
-
-    private void close () {
-
-        try {
-
-            closeClient();
-
-            if (serverSocket != null) {
-                System.out.println("INFO: Closing server socket");
-                serverSocket.close();
-            }
         } catch (IOException e) {
             System.out.println("ERROR: Error closing connection " + e.getMessage());
         }
